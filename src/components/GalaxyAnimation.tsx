@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
+// import { MeshStandardMaterial, PointLight } from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
+import { DragControls } from "three/examples/jsm/controls/DragControls";
 
 function getRandomColor(): THREE.Color {
   const letters = "0123456789ABCDEF";
@@ -39,16 +41,26 @@ function createStars() {
 }
 
 function createSun() {
-  const geometry = new THREE.SphereGeometry(10, 32, 32);
-  const material = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-  const sun = new THREE.Mesh(geometry, material);
+  const sun = new THREE.PointLight(0xffd600, 1.5, 450, 2);
+  sun.position.set(0, 0, 0);
+
+  const glowGeometry = new THREE.SphereGeometry(10, 32, 32);
+  const glowMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffd600,
+    blending: THREE.AdditiveBlending,
+    transparent: true,
+    opacity: 1,
+  });
+  const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+  sun.add(glow);
+
   return sun;
 }
 
 function createRing(innerRadius: number, outerRadius: number) {
   const geometry = new THREE.RingGeometry(innerRadius, outerRadius, 64);
   const material = new THREE.MeshBasicMaterial({
-    color: 0x000000,
+    color: 0x3a5c99,
     side: THREE.DoubleSide,
   });
   const ring = new THREE.Mesh(geometry, material);
@@ -63,6 +75,7 @@ function createPlanet(radius: number, color: THREE.ColorRepresentation) {
 }
 
 const GalaxyAnimation: React.FC = () => {
+  const [isDragging, setIsDragging] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -94,9 +107,9 @@ const GalaxyAnimation: React.FC = () => {
     const sun = createSun();
     scene.add(sun);
 
-    const numberOfRings = 4;
+    const numberOfRings = 5;
     const ringRadiusStep = 20;
-    const planetRadius = 2;
+    const planetRadius = 4;
     const planets: THREE.Mesh[] = []; // Especifique o tipo para evitar avisos
 
     for (let i = 1; i <= numberOfRings; i++) {
@@ -110,26 +123,66 @@ const GalaxyAnimation: React.FC = () => {
       planet.position.set(innerRadius, 0, 0);
       planets.push(planet);
       scene.add(planet);
+
+      const dragControls = new DragControls(
+        [planet],
+        camera,
+        renderer.domElement
+      );
+
+      dragControls.addEventListener("drag", (event) => {
+        const planetPosition = event.object.position;
+        const distance = planetPosition.distanceTo(new THREE.Vector3(0, 0, 0));
+
+        if (distance < innerRadius || distance > outerRadius) {
+          // Impede o planeta de sair do seu anel
+          planetPosition.setLength(innerRadius + planetRadius);
+        } else {
+          // Alinha o planeta com o anel
+          const angle = Math.atan2(planetPosition.y, planetPosition.x);
+          planetPosition.set(
+            innerRadius * Math.cos(angle),
+            innerRadius * Math.sin(angle),
+            0
+          );
+        }
+      });
     }
 
     const clock = new THREE.Clock(); // Adicione um relógio para manter o controle do tempo
+
+    // Cria os DragControls e adiciona cada planeta como objeto arrastável
+    const dragControls = new DragControls(planets, camera, renderer.domElement);
+
+    // Define o movimento do drag and drop
+    dragControls.addEventListener("dragstart", function () {
+      setIsDragging(true);
+      controls.enabled = false;
+    });
+
+    dragControls.addEventListener("dragend", function () {
+      setIsDragging(false);
+      controls.enabled = true;
+    });
 
     const animate = () => {
       requestAnimationFrame(animate);
 
       controls.update();
 
-      const delta = clock.getDelta(); // Obtenha a diferença de tempo desde o último quadro
-
-      const elapsedTime = clock.getElapsedTime(); // Obtenha o tempo acumulado desde o início da animação
+      const delta = clock.getDelta();
+      const elapsedTime = clock.getElapsedTime();
       for (let i = 0; i < planets.length; i++) {
         const planet = planets[i];
-        const angle = elapsedTime * (i + 1) * 0.1 * 2 * Math.PI;
 
-        const x = (i + 1) * ringRadiusStep * Math.cos(angle);
-        const y = (i + 1) * ringRadiusStep * Math.sin(angle);
+        if (!isDragging) {
+          const angle = elapsedTime * (i + 1) * 0.1 * 2 * Math.PI;
 
-        planet.position.set(x, y, 0);
+          const x = (i + 1) * ringRadiusStep * Math.cos(angle);
+          const y = (i + 1) * ringRadiusStep * Math.sin(angle);
+
+          planet.position.set(x, y, 0);
+        }
       }
 
       renderer.render(scene, camera);
