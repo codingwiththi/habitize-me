@@ -4,6 +4,15 @@ import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
+function getRandomColor(): THREE.Color {
+  const letters = "0123456789ABCDEF";
+  let color = "0x";
+  for (let i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  return new THREE.Color(Number(color));
+}
+
 function createStars() {
   const geometry = new THREE.BufferGeometry();
   const starVertices = [];
@@ -46,9 +55,9 @@ function createRing(innerRadius: number, outerRadius: number) {
   return ring;
 }
 
-function createPlanet(radius: number) {
+function createPlanet(radius: number, color: THREE.ColorRepresentation) {
   const geometry = new THREE.SphereGeometry(radius, 32, 32);
-  const material = new THREE.MeshBasicMaterial({ color: 0xd9d9d9 });
+  const material = new THREE.MeshBasicMaterial({ color: color });
   const planet = new THREE.Mesh(geometry, material);
   return planet;
 }
@@ -96,7 +105,8 @@ const GalaxyAnimation: React.FC = () => {
       const ring = createRing(innerRadius, outerRadius);
       scene.add(ring);
 
-      const planet = createPlanet(planetRadius);
+      const randomColor = getRandomColor();
+      const planet = createPlanet(planetRadius, randomColor);
       planet.position.set(innerRadius, 0, 0);
       planets.push(planet);
       scene.add(planet);
