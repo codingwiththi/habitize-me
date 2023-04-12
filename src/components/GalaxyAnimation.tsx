@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
 interface PlanetProps {
   color: THREE.ColorRepresentation;
@@ -8,15 +9,20 @@ interface PlanetProps {
   position: { x: number; y: number; z: number };
 }
 
-function createStars(count: number) {
+function createStars() {
   const geometry = new THREE.BufferGeometry();
-  const positions = new Float32Array(count * 3);
-
-  for (let i = 0; i < count * 3; i++) {
-    positions[i] = (Math.random() - 0.5) * 50;
+  const starVertices = [];
+  for (let i = 0; i < 10000; i++) {
+    const x = Math.random() * 2000 - 1000;
+    const y = Math.random() * 2000 - 1000;
+    const z = Math.random() * 2000 - 1000;
+    starVertices.push(x, y, z);
   }
 
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute(
+    "position",
+    new THREE.Float32BufferAttribute(starVertices, 3)
+  );
 
   const material = new THREE.PointsMaterial({
     color: 0xffffff,
@@ -66,53 +72,125 @@ const GalaxyAnimation: React.FC = () => {
       0.1,
       1000
     );
-    const renderer = new THREE.WebGLRenderer();
+    camera.position.z = 100;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setClearColor(new THREE.Color("#1a2b4c")); // Definindo a cor de fundo
     updateSize(renderer, ref); // Atualizando o tamanho do renderizador
     ref.current.appendChild(renderer.domElement);
-    const planetsGroup = new THREE.Group();
-    scene.add(planetsGroup);
-    const stars = createStars(5000);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.rotateSpeed = 0.3;
+
+    // Adicione objetos à cena aqui
+    const stars = createStars();
     scene.add(stars);
 
-    const planet1 = createPlanet({
-      color: "#ff0000",
-      radius: 0.5,
-      position: { x: -2, y: 0, z: -5 },
-    });
-    planetsGroup.add(planet1);
+    // Adding the sun
+    const sunGeometry = new THREE.SphereGeometry(2, 32, 32);
+    const sunMaterial = new THREE.MeshBasicMaterial({ color: "#ffe845" });
+    const sun = new THREE.Mesh(sunGeometry, sunMaterial);
+    // scene.add(sun);
 
-    const planet2 = createPlanet({
-      color: "#00ff00",
-      radius: 0.4,
-      position: { x: 0, y: 2, z: -6 },
-    });
-    planetsGroup.add(planet2);
+    const centralOrbit = new THREE.Object3D();
+    // centralOrbit.add(sun);
 
-    const planet3 = createPlanet({
-      color: "#0000ff",
-      radius: 0.6,
-      position: { x: 2, y: -1, z: -4 },
-    });
-    planetsGroup.add(planet3);
+    // Adding spiral galaxies around the sun
+    // const spiralGalaxies: SpiralGalaxy[] = [];
+    const spiralGalaxies: THREE.Mesh[] = [];
+    const smallestGeometry = new THREE.SphereGeometry(5 * 4, 32, 32);
+    const smallestMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+    const smallestSpiralGalaxy = new THREE.Mesh(
+      smallestGeometry,
+      smallestMaterial
+    );
+    smallestSpiralGalaxy.position.set(0, (0 - 2) * 5, (0 - 2) * 5);
+    spiralGalaxies.push(smallestSpiralGalaxy);
+    scene.add(smallestSpiralGalaxy);
 
-    camera.position.z = 5;
+    for (let i = 1; i < 6; i++) {
+      const geometry = new THREE.SphereGeometry(5 + i * 4, 32, 32);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x0085ab,
+        wireframe: true,
+      });
+      const spiralGalaxy = new THREE.Mesh(geometry, material);
+      spiralGalaxy.position.x = 0;
+      spiralGalaxy.position.y = (i - 2) * 5;
+      spiralGalaxy.position.z = (i - 2) * 5;
+
+      spiralGalaxies.push(spiralGalaxy);
+      scene.add(spiralGalaxy);
+    }
+
+    // Adding planets orbiting the spiral galaxies
+    const planets: THREE.Mesh[] = [];
+
+    spiralGalaxies.forEach((spiralGalaxy) => {
+      for (let i = 0; i < 1; i++) {
+        const planetGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const planetMaterial = new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          wireframe: false,
+        });
+        const planet = new THREE.Mesh(planetGeometry, planetMaterial);
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 20 + Math.random() * 10;
+        planet.position.x = Math.cos(angle) * distance;
+        planet.position.y = Math.random() * 3 - 1.5;
+        planet.position.z = Math.sin(angle) * distance;
+        spiralGalaxy.add(planet);
+
+        const orbit = new THREE.Object3D();
+        orbit.position.x = Math.cos(angle) * distance;
+        orbit.position.y = Math.random() * 3 - 1.5;
+        orbit.position.z = Math.sin(angle) * distance;
+
+        centralOrbit.add(orbit);
+        orbit.add(planet);
+
+        planets.push(planet);
+      }
+    });
+
+    camera.position.z = 30;
+
+    scene.add(centralOrbit);
 
     const animate = () => {
       requestAnimationFrame(animate);
 
       // Adicione animações e atualizações aqui
+      // Rotating sun and spiral galaxies
+      sun.rotation.y += 0.001;
+      spiralGalaxies.forEach((spiralGalaxy, index) => {
+        spiralGalaxy.rotation.y -= 0.003 + index / 200;
+      });
+
+      // Orbiting planets around their respective spiral galaxies
+      planets.forEach((planet, index) => {
+        const angle = (index + 1) * 0.01;
+        const distance = 20 + Math.random() * 10;
+        planet.position.x = Math.cos(angle) * distance;
+        planet.position.y = Math.random() * 3 - 1.5;
+        planet.position.z = Math.sin(angle) * distance;
+
+        const orbit = planet.parent;
+        if (orbit && orbit !== centralOrbit) {
+          orbit.rotation.y -= 0.003 + index / 200;
+        }
+      });
+
+      centralOrbit.rotation.y += 0.001;
+
+      // Updating controls
+      controls.update();
 
       // Atualize a posição dos planetas ao longo do caminho central
-      planet1.position.x += 0.01;
-      planet2.position.x -= 0.01;
-      planet3.position.x += 0.01;
-
-      // Atualize a rotação das órbitas dos planetas
-      planet1.rotation.y += 0.01;
-      planet2.rotation.y -= 0.01;
-      planet3.rotation.y += 0.01;
 
       stars.rotation.x += 0.0001;
       stars.rotation.y += 0.0001;
